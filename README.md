@@ -609,37 +609,6 @@ M²가 증가하면 발산각 증가 → 지상국에서 더 넓은 빔 → 수�
 
 ---
 
-## 4.7 Corner-Cube 반사 비율 (3축)
-
-### 물리적 원리
-Corner-cube retroreflector는 **3개의 직교 평면**으로 구성되며, 각 평면에서의 입사각에 따라 반사 효율이 달라진다.
-
-### 수식
-```
-h_MRR = h_MRR_xy · h_MRR_xz · h_MRR_yz
-
-h_MRR_n = 1 - tan(θ_n)  [θ_n < 45°]
-        = 0              [θ_n ≥ 45°]
-```
-
-### 코드 구현 (`src/mrr/efficiency.py:149-193`)
-```python
-def mrr_reflection_ratio_single(theta_n_deg):
-    theta_rad = np.deg2rad(abs(theta_n_deg))
-    if theta_rad >= np.pi / 4:  # >= 45°
-        return 0.0
-    ratio = 1.0 - np.tan(theta_rad)
-    return max(0.0, ratio)
-
-def mrr_reflection_ratio(theta_xy_deg, theta_xz_deg, theta_yz_deg):
-    h_xy = mrr_reflection_ratio_single(theta_xy_deg)
-    h_xz = mrr_reflection_ratio_single(theta_xz_deg)
-    h_yz = mrr_reflection_ratio_single(theta_yz_deg)
-    return h_xy * h_xz * h_yz
-```
-
----
-
 # 5. Antenna Model vs Optical Model 비교
 
 ## 5.1 특성 비교표
