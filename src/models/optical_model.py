@@ -64,7 +64,7 @@ class OpticalModelParams:
     rx_diameter_cm: float = 16.0        # GS 수신 직경 [cm]
     eta_rx: float = 0.8                 # 수신 광학계 효율 (0~1)
     rx_config: Literal["bistatic", "concentric"] = "bistatic"
-    rx_offset_m: float = 0.1            # Bistatic offset [m]
+    rx_offset_cm: float = 10.0           # Bistatic offset [cm]
     tx_inner_diameter_cm: float = 5.0   # Concentric TX 내경 [cm]
     beam_profile: Literal["uniform", "gaussian", "airy"] = "uniform"  # 다운링크 빔 프로파일
 
@@ -109,6 +109,7 @@ def calculate_optical_channel_coefficient(params: OpticalModelParams) -> Optical
     mrr_diameter_m = cm_to_m(params.mrr_diameter_cm)
     rx_diameter_m = cm_to_m(params.rx_diameter_cm)
     tx_inner_diameter_m = cm_to_m(params.tx_inner_diameter_cm)
+    rx_offset_m = cm_to_m(params.rx_offset_cm)
     tracking_offset_rad = urad_to_rad(params.tracking_offset_urad)
     tx_beam_diameter_m = mm_to_m(params.tx_beam_diameter_mm) if params.tx_beam_diameter_mm else None
 
@@ -226,7 +227,7 @@ def calculate_optical_channel_coefficient(params: OpticalModelParams) -> Optical
         beam_radius_m=beam_radius_at_gs,
         config=params.rx_config,
         rx_outer_radius_m=rx_radius_m,
-        offset_m=params.rx_offset_m,
+        offset_m=rx_offset_m,
         tx_inner_radius_m=tx_inner_diameter_m / 2.0,
         profile=params.beam_profile
     )
