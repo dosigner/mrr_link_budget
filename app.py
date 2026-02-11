@@ -162,7 +162,7 @@ with st.sidebar:
             tx_inner_diameter_cm = 0.0
         else:
             rx_offset_m = 0.0
-            tx_inner_diameter_cm = st.number_input("TX Inner Diameter [cm]", 1.0, 10.0, 5.0, 0.5)
+            tx_inner_diameter_cm = st.number_input("TX Inner Diameter [cm]", 0.1, 10.0, 5.0, 0.5)
 
     # === 추적 ===
     with st.expander("🎯 Tracking", expanded=True):
