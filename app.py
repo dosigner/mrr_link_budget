@@ -158,10 +158,10 @@ with st.sidebar:
 
         rx_config = st.radio("RX Configuration", ["bistatic", "concentric"])
         if rx_config == "bistatic":
-            rx_offset_m = st.number_input("TX-RX Offset [m]", 0.0, 1.0, 0.1, 0.01)
+            rx_offset_cm = st.number_input("TX-RX Offset [cm]", 0.0, 100.0, 10.0, 1.0)
             tx_inner_diameter_cm = 0.0
         else:
-            rx_offset_m = 0.0
+            rx_offset_cm = 0.0
             tx_inner_diameter_cm = st.number_input("TX Inner Diameter [cm]", 0.1, 10.0, 5.0, 0.5)
 
     # === 추적 ===
@@ -227,7 +227,7 @@ antenna_params = AntennaModelParams(
     rx_diameter_cm=rx_diameter_cm,
     L_rx_optics_dB=L_rx_optics_dB,
     rx_config=rx_config,
-    rx_offset_m=rx_offset_m,
+    rx_offset_cm=rx_offset_cm,
     tx_inner_diameter_cm=tx_inner_diameter_cm,
     beam_profile=beam_profile,
     receiver_sensitivity_dBm=receiver_sensitivity_dBm,
@@ -267,7 +267,7 @@ optical_params = OpticalModelParams(
     rx_diameter_cm=rx_diameter_cm,
     eta_rx=10**(-L_rx_optics_dB/10),
     rx_config=rx_config,
-    rx_offset_m=rx_offset_m,
+    rx_offset_cm=rx_offset_cm,
     tx_inner_diameter_cm=tx_inner_diameter_cm,
     beam_profile=beam_profile,
     tracking_offset_urad=tracking_offset_urad,

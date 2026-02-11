@@ -67,7 +67,7 @@ class AntennaModelParams:
     rx_diameter_cm: float = 16.0        # GS 수신 직경 [cm]
     L_rx_optics_dB: float = 3.0         # 수신 광학계 손실 [dB]
     rx_config: Literal["bistatic", "concentric"] = "bistatic"
-    rx_offset_m: float = 0.1            # Bistatic offset [m]
+    rx_offset_cm: float = 10.0           # Bistatic offset [cm]
     tx_inner_diameter_cm: float = 5.0   # Concentric TX 내경 [cm]
     beam_profile: Literal["uniform", "gaussian", "airy"] = "uniform"  # 다운링크 빔 프로파일
     receiver_sensitivity_dBm: float = -40.0  # 수신 감도 [dBm]
@@ -103,6 +103,7 @@ def calculate_antenna_link_budget(params: AntennaModelParams) -> LinkBudgetResul
     mrr_diameter_m = cm_to_m(params.mrr_diameter_cm)
     rx_diameter_m = cm_to_m(params.rx_diameter_cm)
     tx_inner_diameter_m = cm_to_m(params.tx_inner_diameter_cm)
+    rx_offset_m = cm_to_m(params.rx_offset_cm)
     tracking_offset_rad = urad_to_rad(params.tracking_offset_urad)
     tx_beam_diameter_m = mm_to_m(params.tx_beam_diameter_mm) if params.tx_beam_diameter_mm else None
 
@@ -254,7 +255,7 @@ def calculate_antenna_link_budget(params: AntennaModelParams) -> LinkBudgetResul
         beam_radius_at_gs,
         params.rx_config,
         rx_diameter_m / 2.0,
-        params.rx_offset_m,
+        rx_offset_m,
         tx_inner_diameter_m / 2.0,
         params.beam_profile
     )
