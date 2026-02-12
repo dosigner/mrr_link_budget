@@ -16,8 +16,8 @@ from src.atmosphere.turbulence import (
     hufnagel_valley_cn2, calculate_rytov_variance_constant,
     sample_lognormal_fading, sample_gamma_gamma_fading
 )
-from src.mrr.efficiency import eta_mrr, mrr_m2, mrr_reflection_ratio
-from src.mrr.modulation import modulation_loss_dB
+from src.mrr.efficiency import eta_mrr, mrr_m2, mrr_reflection_ratio, ccr_orientation_loss_dB, ccr_mean_h_mrr
+from src.mrr.modulation import modulation_loss_dB, ccr_passive_loss_dB
 from src.geometry.pointing import (
     calculate_beam_diameter_at_distance, tracking_error_loss,
     downlink_divergence
@@ -235,6 +235,101 @@ class TestOpticalModel:
 
         # 채널 계수는 0과 1 사이
         assert 0 < result.h_total < 1
+
+
+class TestCCR:
+    """CCR (Corner Cube Retroreflector) 테스트"""
+
+    def test_ccr_orientation_loss(self):
+        """CCR orientation loss는 양수, 합리적 범위"""
+        loss = ccr_orientation_loss_dB(3.0)
+        assert loss > 0
+        assert loss < 10  # 합리적 범위
+
+    def test_ccr_mean_h_mrr_table_ii(self):
+        """Table II 검증: σ=1°→~0.96, σ=3°→~0.86, σ=5°→~0.83"""
+        h_1 = ccr_mean_h_mrr(1.0)
+        assert h_1 == pytest.approx(0.96, abs=0.02)
+
+        h_3 = ccr_mean_h_mrr(3.0)
+        assert h_3 == pytest.approx(0.86, abs=0.03)
+
+        h_5 = ccr_mean_h_mrr(5.0)
+        assert h_5 == pytest.approx(0.83, abs=0.05)
+
+    def test_ccr_mean_h_mrr_zero_sigma(self):
+        """σ=0일 때 h_MRR ≈ 1.0"""
+        h_0 = ccr_mean_h_mrr(0.01)
+        assert h_0 == pytest.approx(1.0, abs=0.01)
+
+    def test_ccr_passive_loss(self):
+        """CCR passive loss: 0.99^3 + AR = 예상값"""
+        loss = ccr_passive_loss_dB(0.99, 0.5)
+        expected_reflection = -10 * np.log10(0.99 ** 3)
+        assert loss == pytest.approx(expected_reflection + 0.5, rel=0.01)
+
+    def test_ccr_passive_loss_default(self):
+        """기본값으로 계산 가능"""
+        loss = ccr_passive_loss_dB()
+        assert loss > 0
+        assert loss < 2.0  # 합리적 범위
+
+    def test_ccr_antenna_model(self):
+        """CCR 모드에서 Antenna Model 정상 작동"""
+        params = AntennaModelParams(
+            reflector_type="ccr",
+            ccr_surface_reflectivity=0.99,
+            ccr_m2=1.05
+        )
+        result = calculate_antenna_link_budget(params)
+
+        # L_orientation = 0 확인
+        assert result.uplink.L_orientation_dB == 0.0
+
+        # 정상적인 결과
+        assert result.link_margin_dB != 0
+        assert np.isfinite(result.receiver_power_dBm)
+
+    def test_ccr_optical_model(self):
+        """CCR 모드에서 Optical Model 정상 작동"""
+        params = OpticalModelParams(
+            reflector_type="ccr",
+            ccr_surface_reflectivity=0.99,
+            ccr_m2=1.05
+        )
+        result = calculate_optical_channel_coefficient(params)
+
+        # h_orientation = 1.0 확인
+        assert result.h_orientation == 1.0
+
+        # 정상적인 결과
+        assert result.h_total > 0
+        assert result.P_rx_W > 0
+
+    def test_mrr_backward_compatibility(self):
+        """기본값(MRR)으로 기존 동작 유지"""
+        # 기본 파라미터 (reflector_type 명시 없음 → "mrr")
+        params_default = AntennaModelParams()
+        result_default = calculate_antenna_link_budget(params_default)
+
+        # 명시적 MRR 파라미터
+        params_mrr = AntennaModelParams(reflector_type="mrr")
+        result_mrr = calculate_antenna_link_budget(params_mrr)
+
+        # 동일한 결과
+        assert result_default.link_margin_dB == pytest.approx(result_mrr.link_margin_dB)
+        assert result_default.receiver_power_dBm == pytest.approx(result_mrr.receiver_power_dBm)
+
+    def test_ccr_vs_mrr_different(self):
+        """CCR과 MRR이 다른 결과를 생성"""
+        params_mrr = AntennaModelParams(reflector_type="mrr")
+        params_ccr = AntennaModelParams(reflector_type="ccr")
+
+        result_mrr = calculate_antenna_link_budget(params_mrr)
+        result_ccr = calculate_antenna_link_budget(params_ccr)
+
+        # 다른 결과
+        assert result_mrr.link_margin_dB != result_ccr.link_margin_dB
 
 
 if __name__ == "__main__":

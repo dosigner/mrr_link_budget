@@ -166,11 +166,14 @@ def run_monte_carlo_antenna(
 
     # === 채널 계수 결합 ===
 
-    # Uplink: 신틸레이션 + pointing + orientation
-    h_uplink_samples = h_scint_up * h_pointing * h_mrr_samples
-
-    # Downlink: 신틸레이션
-    h_downlink_samples = h_scint_down
+    if getattr(params, 'reflector_type', 'mrr') == "ccr":
+        # CCR: geometric clipping은 downlink에 배치 (orientation 제외한 uplink)
+        h_uplink_samples = h_scint_up * h_pointing
+        h_downlink_samples = h_scint_down * h_mrr_samples
+    else:
+        # MRR: orientation을 uplink에 포함 (기존 동작)
+        h_uplink_samples = h_scint_up * h_pointing * h_mrr_samples
+        h_downlink_samples = h_scint_down
 
     # Total channel coefficient (상대적 변동)
     h_samples = h_uplink_samples * h_downlink_samples
@@ -300,8 +303,14 @@ def run_monte_carlo_optical(
 
     # === 채널 계수 결합 ===
 
-    h_uplink_samples = h_scint_up * h_pointing * h_mrr_samples
-    h_downlink_samples = h_scint_down
+    if getattr(params, 'reflector_type', 'mrr') == "ccr":
+        # CCR: geometric clipping은 downlink에 배치
+        h_uplink_samples = h_scint_up * h_pointing
+        h_downlink_samples = h_scint_down * h_mrr_samples
+    else:
+        # MRR: orientation을 uplink에 포함 (기존 동작)
+        h_uplink_samples = h_scint_up * h_pointing * h_mrr_samples
+        h_downlink_samples = h_scint_down
 
     # 기본 채널 계수에 페이딩 적용
     # base_result.h_total 에는 h_aug=1, h_agu=1 이므로 scintillation 제외됨

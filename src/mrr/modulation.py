@@ -70,3 +70,22 @@ def mrr_passive_loss_dB(ar_coating_loss_dB: float = 0.5,
         총 passive 손실 [dB]
     """
     return ar_coating_loss_dB + reflectivity_loss_dB
+
+
+def ccr_passive_loss_dB(surface_reflectivity: float = 0.99,
+                        ar_coating_loss_dB: float = 0.5) -> float:
+    """
+    CCR 3회 반사 passive 손실 + AR 코팅
+
+    Corner Cube Retroreflector는 3개 직교면에서 반사하므로
+    반사율이 3회 적용됨.
+
+    Parameters:
+        surface_reflectivity: 표면 반사율 (0~1, default: 0.99)
+        ar_coating_loss_dB: AR 코팅 손실 [dB] (default: 0.5)
+
+    Returns:
+        총 passive 손실 [dB] (양수)
+    """
+    reflection_loss_dB = -10.0 * np.log10(surface_reflectivity ** 3)
+    return reflection_loss_dB + ar_coating_loss_dB

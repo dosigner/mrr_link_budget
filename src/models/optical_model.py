@@ -17,7 +17,7 @@ from ..atmosphere.turbulence import (
     calculate_rytov_variance_constant, hufnagel_valley_cn2,
     calculate_rytov_variance_profile, scintillation_loss_dB
 )
-from ..mrr.efficiency import mrr_m2, mrr_orientation_loss_dB
+from ..mrr.efficiency import mrr_m2, mrr_orientation_loss_dB, ccr_mean_h_mrr
 from ..mrr.modulation import mqw_modulation_efficiency_from_contrast
 from ..geometry.pointing import (
     calculate_beam_diameter_at_distance, calculate_beam_radius_at_distance,
@@ -59,6 +59,11 @@ class OpticalModelParams:
     alpha_off: float = 0.1              # OFF 상태 흡수 계수 α_off
     c_mqw: float = 3.0                  # Contrast ratio C_MQW (T_on/T_off)
     modulation_efficiency: float = 0.5  # 변조 효율 M (0~1) - use_mqw_params=False일 때 사용
+
+    # CCR (Corner Cube Retroreflector)
+    reflector_type: Literal["mrr", "ccr"] = "mrr"  # 반사체 유형
+    ccr_surface_reflectivity: float = 0.99   # CCR 표면 반사율
+    ccr_m2: float = 1.05                     # CCR M² (고정값, 각도 비의존)
 
     # 수신부
     rx_diameter_cm: float = 16.0        # GS 수신 직경 [cm]
@@ -121,18 +126,22 @@ def calculate_optical_channel_coefficient(params: OpticalModelParams) -> Optical
     )
     beam_radius_at_mrr = beam_diameter_at_mrr / 2.0
 
-    # MRR M² 계산 (입력 방식에 따라 m2_min 결정, 항상 angle-dependent)
-    if params.use_strehl:
-        # Strehl ratio에서 최소 M² 계산: M² = 1/√Strehl
-        m2_min = 1.0 / np.sqrt(max(params.strehl_ratio, 0.01))
+    # M² 계산 (reflector type에 따라 분기)
+    if params.reflector_type == "ccr":
+        # CCR: 고정 M² 값 (각도 비의존)
+        mrr_m2_value = params.ccr_m2
     else:
-        m2_min = params.mrr_m2_min
+        # MRR: 각도 의존적 M²
+        if params.use_strehl:
+            m2_min = 1.0 / np.sqrt(max(params.strehl_ratio, 0.01))
+        else:
+            m2_min = params.mrr_m2_min
 
-    mrr_m2_value = mrr_m2(
-        params.sigma_orientation_deg,
-        m2_min, params.mrr_m2_max,
-        params.mrr_knee_deg, params.mrr_max_deg
-    )
+        mrr_m2_value = mrr_m2(
+            params.sigma_orientation_deg,
+            m2_min, params.mrr_m2_max,
+            params.mrr_knee_deg, params.mrr_max_deg
+        )
 
     # 다운링크 발산각
     downlink_div_rad = downlink_divergence(wavelength_m, mrr_diameter_m, mrr_m2_value)
@@ -201,25 +210,33 @@ def calculate_optical_channel_coefficient(params: OpticalModelParams) -> Optical
         L_scint_up_dB = 0.0
         h_aug = 1.0
 
-    # 4. UAV 자세 오차 손실 h_orientation (Antenna Model L_orientation에 대응)
-    # Uplink에서 MRR에 도달하는 전력에 영향
-    L_orientation_dB = mrr_orientation_loss_dB(
-        params.sigma_orientation_deg,
-        params.mrr_knee_deg, params.mrr_max_deg
-    )
-    h_orientation = 10.0 ** (-L_orientation_dB / 10.0)  # dB → linear
+    # 4. UAV 자세 오차 손실 h_orientation
+    if params.reflector_type == "ccr":
+        # CCR: orientation은 h_MRR에 통합되므로 1.0
+        L_orientation_dB = 0.0
+        h_orientation = 1.0
+    else:
+        # MRR: eta_mrr 기반 (Antenna Model L_orientation에 대응)
+        L_orientation_dB = mrr_orientation_loss_dB(
+            params.sigma_orientation_deg,
+            params.mrr_knee_deg, params.mrr_max_deg
+        )
+        h_orientation = 10.0 ** (-L_orientation_dB / 10.0)
 
     # === MRR 채널 계수 ===
 
-    # 변조 효율 (MQW 파라미터 또는 직접 입력)
-    if params.use_mqw_params:
-        # M = exp(-α_off) * (C_MQW - 1)
-        h_modulation = mqw_modulation_efficiency_from_contrast(params.c_mqw, params.alpha_off)
+    # MRR 채널 계수 (reflector type에 따라 분기)
+    if params.reflector_type == "ccr":
+        # CCR: geometric clipping mean + 3회 반사 passive 손실
+        h_modulation = ccr_mean_h_mrr(params.sigma_orientation_deg)
+        h_MRR = h_modulation * (params.ccr_surface_reflectivity ** 3)
     else:
-        h_modulation = params.modulation_efficiency
-
-    # h_MRR = h_modulation (단순화: 변조 효율만)
-    h_MRR = h_modulation
+        # MRR: MQW 변조 효율
+        if params.use_mqw_params:
+            h_modulation = mqw_modulation_efficiency_from_contrast(params.c_mqw, params.alpha_off)
+        else:
+            h_modulation = params.modulation_efficiency
+        h_MRR = h_modulation
 
     # === Downlink 채널 계수 계산 ===
 

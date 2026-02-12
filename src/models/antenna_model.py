@@ -18,8 +18,8 @@ from ..atmosphere.turbulence import (
     calculate_rytov_variance_constant, hufnagel_valley_cn2,
     calculate_rytov_variance_profile, scintillation_loss_dB
 )
-from ..mrr.efficiency import eta_mrr, mrr_m2, mrr_orientation_loss_dB
-from ..mrr.modulation import modulation_loss_dB, mrr_passive_loss_dB, mqw_modulation_efficiency_from_contrast
+from ..mrr.efficiency import eta_mrr, mrr_m2, mrr_orientation_loss_dB, ccr_orientation_loss_dB
+from ..mrr.modulation import modulation_loss_dB, mrr_passive_loss_dB, mqw_modulation_efficiency_from_contrast, ccr_passive_loss_dB
 from ..geometry.pointing import (
     calculate_beam_diameter_at_distance, calculate_beam_radius_at_distance,
     gaussian_pointing_loss, downlink_divergence, calculate_beam_footprint_area
@@ -62,6 +62,11 @@ class AntennaModelParams:
 
     mrr_ar_coating_loss_dB: float = 0.5 # AR 코팅 손실 [dB]
     mrr_passive_loss_dB: float = 0.3    # MRR passive 손실 [dB]
+
+    # CCR (Corner Cube Retroreflector)
+    reflector_type: Literal["mrr", "ccr"] = "mrr"  # 반사체 유형
+    ccr_surface_reflectivity: float = 0.99   # CCR 표면 반사율
+    ccr_m2: float = 1.05                     # CCR M² (고정값, 각도 비의존)
 
     # 수신부
     rx_diameter_cm: float = 16.0        # GS 수신 직경 [cm]
@@ -115,18 +120,22 @@ def calculate_antenna_link_budget(params: AntennaModelParams) -> LinkBudgetResul
     )
     beam_radius_at_mrr = beam_diameter_at_mrr / 2.0
 
-    # MRR M² 계산 (입력 방식에 따라 m2_min 결정, 항상 angle-dependent)
-    if params.use_strehl:
-        # Strehl ratio에서 최소 M² 계산: M² = 1/√Strehl
-        m2_min = 1.0 / np.sqrt(max(params.strehl_ratio, 0.01))
+    # M² 계산 (reflector type에 따라 분기)
+    if params.reflector_type == "ccr":
+        # CCR: 고정 M² 값 (각도 비의존)
+        mrr_m2_value = params.ccr_m2
     else:
-        m2_min = params.mrr_m2_min
+        # MRR: 각도 의존적 M² (입력 방식에 따라 m2_min 결정)
+        if params.use_strehl:
+            m2_min = 1.0 / np.sqrt(max(params.strehl_ratio, 0.01))
+        else:
+            m2_min = params.mrr_m2_min
 
-    mrr_m2_value = mrr_m2(
-        params.sigma_orientation_deg,
-        m2_min, params.mrr_m2_max,
-        params.mrr_knee_deg, params.mrr_max_deg
-    )
+        mrr_m2_value = mrr_m2(
+            params.sigma_orientation_deg,
+            m2_min, params.mrr_m2_max,
+            params.mrr_knee_deg, params.mrr_max_deg
+        )
 
     # 다운링크 발산각
     downlink_div_rad = downlink_divergence(wavelength_m, mrr_diameter_m, mrr_m2_value)
@@ -187,11 +196,16 @@ def calculate_antenna_link_budget(params: AntennaModelParams) -> LinkBudgetResul
     d_p_tracking = tracking_offset_rad * params.distance_m
     _, L_tracking_dB = gaussian_pointing_loss(d_p_tracking, beam_radius_at_mrr)
 
-    # UAV 자세 오차 손실 (eta_mrr 기반)
-    L_orientation_dB = mrr_orientation_loss_dB(
-        params.sigma_orientation_deg,
-        params.mrr_knee_deg, params.mrr_max_deg
-    )
+    # UAV 자세 오차 손실
+    if params.reflector_type == "ccr":
+        # CCR: orientation loss는 h_MRR에 통합되므로 0
+        L_orientation_dB = 0.0
+    else:
+        # MRR: eta_mrr 기반
+        L_orientation_dB = mrr_orientation_loss_dB(
+            params.sigma_orientation_deg,
+            params.mrr_knee_deg, params.mrr_max_deg
+        )
 
     # MRR 수신 이득
     mrr_area = np.pi * (mrr_diameter_m / 2.0) ** 2
@@ -218,16 +232,28 @@ def calculate_antenna_link_budget(params: AntennaModelParams) -> LinkBudgetResul
     _, G_mrr_rx_base_dB = aperture_gain(mrr_diameter_m, wavelength_m)
     G_mrr_rx_dB = G_mrr_rx_base_dB - 20.0 * np.log10(mrr_m2_value)
 
-    # 변조 손실 (MQW 파라미터 또는 직접 입력)
-    if params.use_mqw_params:
-        # M = exp(-α_off) * (C_MQW - 1)
-        mod_eff = mqw_modulation_efficiency_from_contrast(params.c_mqw, params.alpha_off)
+    # 변조/클리핑 손실
+    if params.reflector_type == "ccr":
+        # CCR: geometric clipping loss (orientation 통합)
+        L_modulation_dB = ccr_orientation_loss_dB(params.sigma_orientation_deg)
     else:
-        mod_eff = params.modulation_efficiency
-    L_modulation_dB = modulation_loss_dB(mod_eff)
+        # MRR: MQW 변조 손실
+        if params.use_mqw_params:
+            mod_eff = mqw_modulation_efficiency_from_contrast(params.c_mqw, params.alpha_off)
+        else:
+            mod_eff = params.modulation_efficiency
+        L_modulation_dB = modulation_loss_dB(mod_eff)
 
-    # MRR passive 손실
-    L_mrr_passive_dB = params.mrr_passive_loss_dB
+    # Passive 손실
+    if params.reflector_type == "ccr":
+        # CCR: 3회 반사 + AR 코팅
+        L_mrr_passive_dB = ccr_passive_loss_dB(
+            params.ccr_surface_reflectivity,
+            params.mrr_ar_coating_loss_dB
+        )
+    else:
+        # MRR: 기존 passive 손실
+        L_mrr_passive_dB = params.mrr_passive_loss_dB
 
     # 다운링크 FSL (같은 거리)
     _, fsl_down_dB = free_space_loss(wavelength_m, params.distance_m)

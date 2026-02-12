@@ -38,7 +38,7 @@ st.set_page_config(
 )
 
 st.title("📡 MRR Link Budget Simulator")
-st.markdown("MQW 기반 Modulating Retro-Reflector FSO 통신 링크 버짓 분석 도구")
+st.markdown("MQW/CCR 기반 Modulating Retro-Reflector FSO 통신 링크 버짓 분석 도구")
 
 
 # === 사이드바: 파라미터 입력 ===
@@ -78,67 +78,122 @@ with st.sidebar:
         if use_fog:
             fog_condition = st.selectbox("Condition Type", ["fog", "smoke"])
 
-    # === MRR ===
-    with st.expander("🔲 MRR Parameters", expanded=True):
-        mrr_diameter_mm = st.number_input("MRR Diameter [mm]", 1.0, 50.0, 20.0, 1.0)
+    # === Reflector ===
+    with st.expander("🔲 Reflector Parameters", expanded=True):
+        # Reflector Type 선택
+        reflector_type_label = st.radio(
+            "Reflector Type",
+            ["MRR (MQW Modulation)", "CCR (Corner Cube)"],
+            horizontal=True,
+            help="MRR: MQW 변조 기반 / CCR: Corner Cube 3회 반사 기반"
+        )
+        is_ccr = reflector_type_label.startswith("CCR")
+
+        mrr_diameter_mm = st.number_input("Reflector Diameter [mm]", 1.0, 50.0, 20.0, 1.0)
         mrr_diameter_cm = mrr_diameter_mm / 10.0
-        
+
         sigma_orientation_deg = st.number_input("Orientation σ [deg]", 0.0, 15.0, 3.0, 0.01,
                                                help="UAV attitude fluctuation standard deviation")
 
-        # MQW 변조 파라미터
-        st.markdown("**Modulation Settings**")
-        use_mqw_params = st.checkbox("Use MQW Parameters (α_off, C_MQW)")
+        if is_ccr:
+            # === CCR 전용 파라미터 ===
+            st.markdown("**CCR Settings**")
+            col_ccr1, col_ccr2 = st.columns(2)
+            with col_ccr1:
+                ccr_surface_reflectivity = st.number_input(
+                    "Surface Reflectivity", 0.90, 1.00, 0.99, 0.01,
+                    help="CCR 표면 반사율 (3회 반사 적용)"
+                )
+            with col_ccr2:
+                ccr_m2_value = st.number_input(
+                    "CCR M²", 1.0, 3.0, 1.05, 0.05,
+                    help="CCR 빔 품질 인자 (고정값, 각도 비의존)"
+                )
 
-        if use_mqw_params:
-            col_mqw1, col_mqw2 = st.columns(2)
-            with col_mqw1:
-                alpha_off = st.number_input("α_off (OFF absorption)", 0.01, 1.0, 0.1, 0.01,
-                                           help="OFF state absorption coefficient")
-            with col_mqw2:
-                c_mqw = st.number_input("C_MQW (Contrast ratio)", 1.1, 10.0, 3.0, 0.1,
-                                       help="Modulation contrast ratio = T_on/T_off")
-            # 계산된 변조 효율 표시
-            calc_mod_eff = np.exp(-alpha_off) * (c_mqw - 1)
-            if calc_mod_eff > 0:
-                st.info(f"M = exp(-α_off) × (C_MQW - 1) = **{calc_mod_eff:.4f}** ({-10*np.log10(calc_mod_eff):.2f} dB)")
-            modulation_efficiency = calc_mod_eff
-        else:
-            modulation_efficiency = st.number_input("Modulation Efficiency M", 0.1, 1.0, 0.5, 0.05)
+            # 계산된 값 표시
+            from src.mrr.efficiency import ccr_mean_h_mrr, ccr_orientation_loss_dB
+            from src.mrr.modulation import ccr_passive_loss_dB
+            mean_h = ccr_mean_h_mrr(sigma_orientation_deg)
+            clip_loss = ccr_orientation_loss_dB(sigma_orientation_deg)
+            passive_loss = ccr_passive_loss_dB(ccr_surface_reflectivity)
+            bounce_loss = -10*np.log10(ccr_surface_reflectivity**3)
+            st.info(
+                f"**CCR Computed Values:**\n"
+                f"- 3-Bounce Loss: {bounce_loss:.3f} dB (reflectivity³ = {ccr_surface_reflectivity**3:.6f})\n"
+                f"- Mean h_MRR: {mean_h:.4f} ({clip_loss:.2f} dB geometric clipping)\n"
+                f"- Total Passive Loss: {passive_loss:.3f} dB (3-bounce + AR)"
+            )
+
+            # MQW 파라미터는 CCR에서 사용하지 않으므로 기본값 설정
+            use_mqw_params = False
             alpha_off = 0.1
             c_mqw = 3.0
+            modulation_efficiency = 0.5
+            use_strehl = False
+            strehl_ratio = 0.8
+            mrr_m2_min = 1.3
+            mrr_m2_max = 3.4
+            mrr_knee_deg = 2.12
+            mrr_max_deg = 3.2
+            mrr_ar_coating_loss = 0.5
+            mrr_passive_loss = 0.3
 
-        # M² / Strehl 입력 방식 선택
-        st.markdown("**M² (Beam Quality)**")
-        use_strehl = st.radio(
-            "Select input type",
-            ["M² (직접 입력)", "Strehl Ratio"],
-            horizontal=True,
-            help="M² = 1/√Strehl"
-        ) == "Strehl Ratio"
+        else:
+            # === MRR 전용 파라미터 (기존 동일) ===
+            ccr_surface_reflectivity = 0.99
+            ccr_m2_value = 1.05
 
-        col_m2_1, col_m2_2 = st.columns(2)
-        with col_m2_1:
-            if use_strehl:
-                strehl_ratio = st.number_input("Strehl Ratio", 0.1, 1.0, 0.8, 0.05,
-                                               help="빔 품질 (1.0 = 완벽한 빔)")
-                # 계산된 M² 표시
-                calc_m2 = 1.0 / np.sqrt(strehl_ratio)
-                st.info(f"M² = 1/√{strehl_ratio:.2f} = **{calc_m2:.2f}**")
-                mrr_m2_min = calc_m2  # Strehl에서 계산된 값
+            # MQW 변조 파라미터
+            st.markdown("**Modulation Settings**")
+            use_mqw_params = st.checkbox("Use MQW Parameters (α_off, C_MQW)")
+
+            if use_mqw_params:
+                col_mqw1, col_mqw2 = st.columns(2)
+                with col_mqw1:
+                    alpha_off = st.number_input("α_off (OFF absorption)", 0.01, 1.0, 0.1, 0.01,
+                                               help="OFF state absorption coefficient")
+                with col_mqw2:
+                    c_mqw = st.number_input("C_MQW (Contrast ratio)", 1.1, 10.0, 3.0, 0.1,
+                                           help="Modulation contrast ratio = T_on/T_off")
+                calc_mod_eff = np.exp(-alpha_off) * (c_mqw - 1)
+                if calc_mod_eff > 0:
+                    st.info(f"M = exp(-α_off) × (C_MQW - 1) = **{calc_mod_eff:.4f}** ({-10*np.log10(calc_mod_eff):.2f} dB)")
+                modulation_efficiency = calc_mod_eff
             else:
-                mrr_m2_min = st.number_input("M² Min", 1.0, 3.0, 1.3, 0.1,
-                                             help="최소 M² 값 (angle=0°)")
-                strehl_ratio = 0.8  # 기본값 (사용 안함)
-        with col_m2_2:
-            mrr_m2_max = st.number_input("M² Max", 2.0, 5.0, 3.4, 0.1,
-                                         help="최대 M² 값 (angle=max°)")
+                modulation_efficiency = st.number_input("Modulation Efficiency M", 0.1, 1.0, 0.5, 0.05)
+                alpha_off = 0.1
+                c_mqw = 3.0
 
-        with st.expander("Advanced MRR Settings"):
-            mrr_knee_deg = st.number_input("Knee Angle [deg]", 0.5, 5.0, 2.12, 0.1)
-            mrr_max_deg = st.number_input("Max Angle [deg]", 1.0, 10.0, 3.2, 0.1)
-            mrr_ar_coating_loss = st.number_input("AR Coating Loss [dB]", 0.0, 2.0, 0.5, 0.1)
-            mrr_passive_loss = st.number_input("Passive Loss [dB]", 0.0, 2.0, 0.3, 0.1)
+            # M² / Strehl 입력 방식 선택
+            st.markdown("**M² (Beam Quality)**")
+            use_strehl = st.radio(
+                "Select input type",
+                ["M² (직접 입력)", "Strehl Ratio"],
+                horizontal=True,
+                help="M² = 1/√Strehl"
+            ) == "Strehl Ratio"
+
+            col_m2_1, col_m2_2 = st.columns(2)
+            with col_m2_1:
+                if use_strehl:
+                    strehl_ratio = st.number_input("Strehl Ratio", 0.1, 1.0, 0.8, 0.05,
+                                                   help="빔 품질 (1.0 = 완벽한 빔)")
+                    calc_m2 = 1.0 / np.sqrt(strehl_ratio)
+                    st.info(f"M² = 1/√{strehl_ratio:.2f} = **{calc_m2:.2f}**")
+                    mrr_m2_min = calc_m2
+                else:
+                    mrr_m2_min = st.number_input("M² Min", 1.0, 3.0, 1.3, 0.1,
+                                                 help="최소 M² 값 (angle=0°)")
+                    strehl_ratio = 0.8
+            with col_m2_2:
+                mrr_m2_max = st.number_input("M² Max", 2.0, 5.0, 3.4, 0.1,
+                                             help="최대 M² 값 (angle=max°)")
+
+            with st.expander("Advanced MRR Settings"):
+                mrr_knee_deg = st.number_input("Knee Angle [deg]", 0.5, 5.0, 2.12, 0.1)
+                mrr_max_deg = st.number_input("Max Angle [deg]", 1.0, 10.0, 3.2, 0.1)
+                mrr_ar_coating_loss = st.number_input("AR Coating Loss [dB]", 0.0, 2.0, 0.5, 0.1)
+                mrr_passive_loss = st.number_input("Passive Loss [dB]", 0.0, 2.0, 0.3, 0.1)
 
     # === 수신부 ===
     with st.expander("📶 Receiver", expanded=True):
@@ -238,7 +293,10 @@ antenna_params = AntennaModelParams(
     h_gs_m=h_gs_m,
     h_uav_m=h_uav_m,
     wind_speed_ms=wind_speed_ms,
-    scint_probability=scint_probability
+    scint_probability=scint_probability,
+    reflector_type="ccr" if is_ccr else "mrr",
+    ccr_surface_reflectivity=ccr_surface_reflectivity,
+    ccr_m2=ccr_m2_value,
 )
 
 # Optical Model 파라미터
@@ -278,6 +336,9 @@ optical_params = OpticalModelParams(
     wind_speed_ms=wind_speed_ms,
     use_turbulence=use_turbulence,
     scint_probability=scint_probability,
+    reflector_type="ccr" if is_ccr else "mrr",
+    ccr_surface_reflectivity=ccr_surface_reflectivity,
+    ccr_m2=ccr_m2_value,
 )
 
 
@@ -810,12 +871,14 @@ with tab5:
 
         # Downlink 상세
         st.subheader("Downlink Components (Antenna Model)")
+        modulation_label = "CCR Geometric Clipping" if is_ccr else "Modulation Loss"
+        modulation_formula = "CCR h_MRR clipping" if is_ccr else "10·log₁₀(M)"
         st.markdown("""
         | Component | Formula | Value |
         |-----------|---------|-------|
         | MRR Input | From uplink | {:.2f} dBm |
         | MRR Gain | Retro-reflection | {:.2f} dB |
-        | Modulation Loss | 10·log₁₀(M) | -{:.2f} dB |
+        | """ + modulation_label + """ | """ + modulation_formula + """ | -{:.2f} dB |
         | Passive Loss | | -{:.2f} dB |
         | Free Space Loss | L_FSL | {:.2f} dB |
         | Atmospheric | Same as uplink | -{:.2f} dB |
@@ -885,4 +948,4 @@ with tab5:
 
 # === Footer ===
 st.divider()
-st.caption("MRR Link Budget Simulator | MQW-based Modulating Retro-Reflector FSO Communication")
+st.caption("MRR Link Budget Simulator | MQW/CCR-based Modulating Retro-Reflector FSO Communication")

@@ -255,3 +255,46 @@ def mrr_orientation_loss_dB(sigma_theta_deg: float,
 
     loss_dB = -10.0 * np.log10(mean_eta)
     return loss_dB
+
+
+def ccr_orientation_loss_dB(sigma_theta_deg: float, n_samples: int = 10000) -> float:
+    """
+    CCR 평균 geometric clipping loss [dB] (Monte Carlo)
+
+    Corner Cube Retroreflector의 h_MRR = (1-tan(θ_xy)) × (1-tan(θ_xz)) × (1-tan(θ_yz))
+    orientation fluctuation에 의한 평균 손실.
+
+    Parameters:
+        sigma_theta_deg: Orientation fluctuation σ [deg]
+        n_samples: Monte Carlo 샘플 수
+
+    Returns:
+        평균 손실 [dB] (양수)
+    """
+    mean_h = ccr_mean_h_mrr(sigma_theta_deg, n_samples)
+
+    if mean_h <= 0:
+        return float('inf')
+
+    return -10.0 * np.log10(mean_h)
+
+
+def ccr_mean_h_mrr(sigma_theta_deg: float, n_samples: int = 10000) -> float:
+    """
+    CCR 평균 h_MRR 값 (linear, Optical Model용)
+
+    sample_mrr_orientation_fluctuation()을 호출하여
+    h_MRR = (1-tan(θ_xy)) × (1-tan(θ_xz)) × (1-tan(θ_yz))의 평균값 반환.
+
+    Table II 검증: σ=1°→μ≈0.96, σ=3°→≈0.86, σ=5°→≈0.83
+
+    Parameters:
+        sigma_theta_deg: Orientation fluctuation σ [deg]
+        n_samples: Monte Carlo 샘플 수
+
+    Returns:
+        평균 h_MRR (linear)
+    """
+    rng = np.random.default_rng(42)  # 재현성을 위한 시드
+    h_samples = sample_mrr_orientation_fluctuation(sigma_theta_deg, n_samples, rng)
+    return float(np.mean(h_samples))
