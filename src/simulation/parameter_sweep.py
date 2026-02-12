@@ -407,7 +407,7 @@ def sweep_divergence(
 
     for i, div_mrad in enumerate(divergences_mrad):
         params = deepcopy(base_params)
-        params.theta_div_mrad = div_mrad
+        params.theta_div_full_mrad = div_mrad
 
         result = calculate_antenna_link_budget(params)
         link_margin[i] = result.link_margin_dB

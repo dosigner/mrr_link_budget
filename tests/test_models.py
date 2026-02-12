@@ -177,7 +177,7 @@ class TestReceiver:
     """수신부 구조 테스트"""
 
     def test_bistatic_loss(self):
-        collected, loss_dB = bistatic_loss(1.0, 0.1, 0.08)
+        collected, loss_dB = bistatic_loss(1.0, 0.1, 0.08, profile="gaussian")
         assert 0 < collected < 1
         assert loss_dB > 0
 

@@ -176,9 +176,13 @@ def calculate_optical_channel_coefficient(params: OpticalModelParams) -> Optical
         distance_km, params.fog_condition
     )
 
-    # 3. 신틸레이션 페이딩 h_aug
+    # Cn² 프로파일 함수 (업링크/다운링크 공통)
+    cn2_func = None
     if params.use_altitude_profile:
         cn2_func = lambda h: hufnagel_valley_cn2(h, params.wind_speed_ms)
+
+    # 3. 신틸레이션 페이딩 h_aug
+    if params.use_altitude_profile:
         sigma_r2_up = calculate_rytov_variance_profile(
             wavelength_m, params.h_gs_m, params.h_uav_m,
             cn2_func, "uplink"

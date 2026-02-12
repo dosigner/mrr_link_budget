@@ -199,18 +199,18 @@ class OpticalModelResult:
     @property
     def h_total_dB(self) -> float:
         """전체 채널 계수 [dB]"""
-        import numpy as np
         if self.h_total <= 0:
             return float('-inf')
+        import numpy as np
         return 10.0 * np.log10(self.h_total)
 
     @property
     def P_rx_dBm(self) -> float:
         """수신 전력 [dBm]"""
-        import numpy as np
         if self.P_rx_W <= 0:
             return float('-inf')
-        return 10.0 * np.log10(self.P_rx_W * 1000)
+        from src.models.common import W_to_dBm
+        return W_to_dBm(self.P_rx_W)
 
     def to_dict(self) -> dict[str, float]:
         """채널 계수 딕셔너리 반환"""

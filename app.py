@@ -885,8 +885,4 @@ with tab5:
 
 # === Footer ===
 st.divider()
-st.markdown("""
-<div style="text-align: center; color: gray; font-size: 0.8em;">
-MRR Link Budget Simulator | MQW-based Modulating Retro-Reflector FSO Communication
-</div>
-""", unsafe_allow_html=True)
+st.caption("MRR Link Budget Simulator | MQW-based Modulating Retro-Reflector FSO Communication")

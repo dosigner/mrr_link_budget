@@ -161,10 +161,14 @@ def calculate_antenna_link_budget(params: AntennaModelParams) -> LinkBudgetResul
         distance_km, params.fog_condition
     )
 
+    # Cn² 프로파일 함수 (업링크/다운링크 공통)
+    cn2_func = None
+    if params.use_altitude_profile:
+        cn2_func = lambda h: hufnagel_valley_cn2(h, params.wind_speed_ms)
+
     # 신틸레이션 손실 (Uplink - spherical wave)
     if params.use_altitude_profile:
         # 고도 프로파일 기반
-        cn2_func = lambda h: hufnagel_valley_cn2(h, params.wind_speed_ms)
         sigma_r2_up = calculate_rytov_variance_profile(
             wavelength_m, params.h_gs_m, params.h_uav_m,
             cn2_func, "uplink"
