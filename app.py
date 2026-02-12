@@ -432,7 +432,7 @@ with tab1:
                 f"{optical_P_mrr_in:.2f}",
             ],
         }
-        st.dataframe(pd.DataFrame(uplink_compare), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(uplink_compare), width="stretch", hide_index=True)
 
         st.divider()
 
@@ -476,7 +476,7 @@ with tab1:
                 f"{optical_comparison['P_rx_dBm']:.2f}",
             ],
         }
-        st.dataframe(pd.DataFrame(downlink_compare), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(downlink_compare), width="stretch", hide_index=True)
 
     elif model_type == "Antenna Model (dB)":
         # 요약 메트릭
@@ -503,7 +503,7 @@ with tab1:
                 "Parameter": list(uplink_data.keys()),
                 "Value": [f"{v:.2f}" for v in uplink_data.values()]
             })
-            st.dataframe(df_uplink, use_container_width=True, hide_index=True)
+            st.dataframe(df_uplink, width="stretch", hide_index=True)
 
         with col2:
             st.subheader("Downlink Budget")
@@ -512,7 +512,7 @@ with tab1:
                 "Parameter": list(downlink_data.keys()),
                 "Value": [f"{v:.2f}" for v in downlink_data.values()]
             })
-            st.dataframe(df_downlink, use_container_width=True, hide_index=True)
+            st.dataframe(df_downlink, width="stretch", hide_index=True)
 
     else:  # Optical Model
         # Optical Model 결과 (dB 변환)
@@ -559,7 +559,7 @@ with tab1:
                 "Parameter": list(uplink_data.keys()),
                 "Value": [f"{v:.2f}" for v in uplink_data.values()]
             })
-            st.dataframe(df_uplink, use_container_width=True, hide_index=True)
+            st.dataframe(df_uplink, width="stretch", hide_index=True)
 
         with col2:
             st.subheader("Downlink Budget")
@@ -576,7 +576,7 @@ with tab1:
                 "Parameter": list(downlink_data.keys()),
                 "Value": [f"{v:.2f}" for v in downlink_data.values()]
             })
-            st.dataframe(df_downlink, use_container_width=True, hide_index=True)
+            st.dataframe(df_downlink, width="stretch", hide_index=True)
 
         # 전체 채널 계수 요약
         st.divider()
@@ -636,7 +636,7 @@ with tab2:
                 receiver_sensitivity_dBm
             )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     else:
         st.info("Waterfall chart is only available for Antenna Model. Select 'Antenna Model (dB)' or 'Both (Comparison)'.")
 
@@ -682,7 +682,7 @@ with tab3:
                     mc_result.P_rx_dBm_samples,
                     receiver_sensitivity_dBm
                 )
-                st.plotly_chart(fig_prx, use_container_width=True)
+                st.plotly_chart(fig_prx, width="stretch")
 
             with col2:
                 st.subheader("Channel Coefficient Distribution")
@@ -691,7 +691,7 @@ with tab3:
                     show_theoretical=True,
                     sigma_r2=mc_result.sigma_r2_uplink + mc_result.sigma_r2_downlink
                 )
-                st.plotly_chart(fig_h, use_container_width=True)
+                st.plotly_chart(fig_h, width="stretch")
 
             # 페이딩 컴포넌트
             st.subheader("Fading Components")
@@ -700,12 +700,12 @@ with tab3:
                 mc_result.h_downlink_samples,
                 mc_result.h_samples
             )
-            st.plotly_chart(fig_fading, use_container_width=True)
+            st.plotly_chart(fig_fading, width="stretch")
 
             # Outage vs Threshold
             st.subheader("Outage vs Threshold")
             fig_outage = plot_outage_vs_threshold(mc_result.P_rx_dBm_samples)
-            st.plotly_chart(fig_outage, use_container_width=True)
+            st.plotly_chart(fig_outage, width="stretch")
 
     else:
         st.info("Enable Monte Carlo simulation in the sidebar to see results.")
@@ -796,7 +796,7 @@ with tab4:
                     yaxis_title="Link Margin [dB]",
                     legend=dict(x=0.02, y=0.98)
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
                 # 비교 테이블
                 st.subheader("Sweep Results Comparison")
@@ -806,7 +806,7 @@ with tab4:
                     "Optical Link Margin [dB]": optical_sweep_result.link_margin_dB,
                     "Difference [dB]": antenna_sweep_result.link_margin_dB - optical_sweep_result.link_margin_dB
                 })
-                st.dataframe(sweep_df, use_container_width=True)
+                st.dataframe(sweep_df, width="stretch")
 
             else:
                 # 단일 모델 결과
@@ -818,7 +818,7 @@ with tab4:
                 else:
                     fig = plot_sweep_link_margin(sweep_result)
 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
                 # 결과 테이블
                 st.subheader(f"Sweep Results ({model_name})")
@@ -829,7 +829,7 @@ with tab4:
                 })
                 if sweep_mc and sweep_result.outage_probability is not None:
                     sweep_df["Outage Probability"] = sweep_result.outage_probability
-                st.dataframe(sweep_df, use_container_width=True)
+                st.dataframe(sweep_df, width="stretch")
 
 
 # === Tab 5: Detailed Breakdown ===
